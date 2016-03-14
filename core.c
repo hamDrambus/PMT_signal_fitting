@@ -21,58 +21,10 @@
 #include <math.h>
 #include ".\di\back_func.c"
 
-#define DATA_ERROR 0.006 //only for signal, not bkg
-#define ERR_ESTIMATE 1
+#define DATA_ERROR data_error//only for signal, not bkg
 #define MODE_ 1
-#define NUMBER_OF_SIMULATIONS 50
-#define WRITE_STAT 0
 #define MANUAL_LIMITS 1
 
-//for testing integral validity
-//class  TF1_EvalWrapper : public ROOT::Math::IGenFunction 
-//{
-//	 public:
-//		    TF1_EvalWrapper(TF1 * f, const Double_t * par, bool useAbsVal, Double_t n = 1, Double_t x0 = 0) :
-//			       fFunc(f),
-//			       fPar(((par) ? par : f->GetParameters())),
-//			       fAbsVal(useAbsVal),
-//			       fN(n),
-//			       fX0(x0)
-//			    {
-//			       fFunc->InitArgs(fX, fPar);
-//			       if (par) fFunc->SetParameters(par);
-//			    }
-//		
-//			ROOT::Math::IGenFunction * Clone()  const 
-//			{
-//				   TF1_EvalWrapper * f = new TF1_EvalWrapper(*this);
-//			       f->fFunc->InitArgs(f->fX, f->fPar);
-//			       return f;
-//			}
-//			Double_t DoEval(Double_t x) const 
-//			{
-//			       fX[0] = x;
-//			       Double_t fval = fFunc->EvalPar(fX, 0);
-//			       if (fAbsVal && fval < 0)  return -fval;
-//			       return fval;
-//			}
-//		    Double_t EvalFirstMom(Double_t x) 
-//			{
-//				fX[0] = x;
-//				return fX[0] * TMath::Abs(fFunc->EvalPar(fX, 0));
-//			}
-//			Double_t EvalNMom(Double_t x) const  
-//			{
-//			fX[0] = x;
-//			return TMath::Power(fX[0] - fX0, fN) * TMath::Abs(fFunc->EvalPar(fX, 0));
-//			}
-//		TF1 * fFunc;
-//		mutable Double_t fX[1];
-//		const double * fPar;
-//		Bool_t fAbsVal;
-//		Double_t fN;
-//		Double_t fX0;
-//};
 
 //pars [0] - x, pars[1] - A, pars[2] - offset, pars[3] - sigma, pars[4] - alpha, pars[5] - m
 double mult_func(double *t, double *pars) //then integrated by t
@@ -81,56 +33,14 @@ double mult_func(double *t, double *pars) //then integrated by t
 	return pars[1] * TMath::Power(pars[5], pars[4] * t[0])*TMath::Exp(-pars[5])*TMath::Gaus((t[0] - pars[0]+pars[2]), 0, pars[3], 0) / (TMath::Gamma(pars[4] * t[0]));
 }
 
-//for testing	 integral validity
-//double custom_TF1_integrate(TF1* func, double left, double right, double &status)
-//{
-//	double result;
-//	ROOT::Math::GaussIntegrator iod(1.e-12,1.e-12);
-//	TF1_EvalWrapper wtf(func, 0, 1);
-//	iod.SetFunction(wtf);
-//	if (left != -TMath::Infinity() && right != TMath::Infinity())
-//	       result = iod.Integral(left, right);
-//	       else if (left == -TMath::Infinity() && right != TMath::Infinity())
-//		         result = iod.IntegralLow(right);
-//	       else if (left != -TMath::Infinity() && right == TMath::Infinity())
-//		          result = iod.IntegralUp(left);
-//	       else if (left == -TMath::Infinity() && right == TMath::Infinity())
-//		          result = iod.Integral();
-//	status = iod.Status();
-//	if (status)
-//	{
-//		std::cout << "Gauss Integral issue" << std::endl;
-//	}
-//	return result;
-//}
-
-//for testing integral validity
-// pars[0] - A, pars[1] - offset, pars[2] - sigma, pars[3] - alpha, pars[4] - m, pars[5] - x0(discriminator), pars[6] - a(discriminator)
-//void write_pars(double x, double *pars, int place)
-//{
-//	std::ofstream rr;
-//	if (place) rr.open(".\\di\\func_val_1.txt", std::ofstream::app);
-//	else rr.open(".\\di\\func_val_2.txt", std::ofstream::app);
-//	rr <<x<<"\t"<<pars[0] << "\t" << pars[1] << "\t" << pars[2] << "\t" << pars[3] << "\t" << pars[4] << "\t" << pars[5] << std::endl;
-//	rr.close();
-//}
-//double test(double *t, double *pars) //then integrated by t
-//{
-//	return 1800*0.5*TMath::Power(0.5*t[0],3.7)*TMath::Exp(-0.5*t[0])/TMath::Gamma(4.7);
-//}
-
 //pars[0] - A, pars[1] - offset, pars[2] - sigma, pars[3] - alpha, pars[4] - m, pars[5] - x0 (discriminator), pars[6] - a(discriminator)
 double signal_func(double* x, double* pars)
 {
 	double L1, R1, R2, L2;
-	double one = 1 / pars[3];
-	double second = x[0] - pars[1]+ pars[2] * pars[2] * pars[3] * TMath::Log(pars[4]);
-	double interval1 = 5 / pars[3];
+	double second = x[0] - pars[1]- pars[2] * pars[2] * pars[3] * TMath::Log(pars[4]); //gaus and exp extremum
+	R1 = 9 / pars[3];
+	L1 = 1 / (40320 * pars[3]); //40320=gamma(9)
 	double interval2 = 5* TMath::Abs(pars[2]);
-	L1 = one - interval1;
-	L1 = (L1 > 0) ? L1:0;
-	R1 = one + interval1;
-	R1 = (R1 > 0) ? R1 : 0;
 	
 	L2 = second - interval2;
 	L2 = (L2 > 0) ? L2 : 0;
@@ -175,14 +85,10 @@ double signal_func(double* x, double* pars)
 double signal_func_old(double* x, double* pars)
 {
 	double L1, R1, R2, L2;
-	double one = 1 / pars[3];
-	double second = x[0] - pars[1] + pars[2] * pars[2] * pars[3] * TMath::Log(pars[4]);
-	double interval1 = 5 / pars[3];
+	double second = x[0] - pars[1] - pars[2] * pars[2] * pars[3] * TMath::Log(pars[4]); //gaus and exp extremum
+	R1 = 9 / pars[3];
+	L1 = 1 / (40320 * pars[3]); //40320=gamma(9)
 	double interval2 = 5 * TMath::Abs(pars[2]);
-	L1 = one - interval1;
-	L1 = (L1 > 0) ? L1 : 0;
-	R1 = one + interval1;
-	R1 = (R1 > 0) ? R1 : 0;
 
 	L2 = second - interval2;
 	L2 = (L2 > 0) ? L2 : 0;
@@ -366,48 +272,21 @@ void Fit_and_Add_to_Draw(extra_info **O_o, TGraph* gr, TMultiGraph* mgr, double 
 	sig->SetMarkerStyle(8);
 	sig->SetLineColor(3);
 	sig->SetLineWidth(1);
-	//if (!out_pars[10])
-	//{
 		signal->SetParLimits(11, 0.008, 0.09);//a
 		signal->SetParLimits(10, 0.15, 0.33); //x0
-		signal->SetParLimits(9, 0.1, 12);//m
-		signal->SetParLimits(8, 5, 50);//alpha
-		signal->SetParLimits(7, 0.06, 3);//sigma
+		signal->SetParLimits(9, 6, 15);//m
+		signal->SetParLimits(8, 0.5, 50);//alpha
+		signal->SetParLimits(7, 0.06, 5);//sigma
 		signal->SetParLimits(6, -0.1, 0.8);//offset
-		signal->SetParLimits(5, 50000, 5000000);//A
+		signal->SetParLimits(5, 5000, 5000000);//A
 		signal->SetParLimits(4, 0.95, 2); //background x scale
 		signal->SetParLimits(3, 0.01, 5);//background y scale
 		signal->SetParLimits(2, -0.1, 0.2);//background x offset
 
-		//signal->SetParLimits(11, 0.005, 0.05);//a
-		//signal->SetParLimits(10, 0.17, 0.3); //x0
-		//signal->SetParLimits(9, 0.8, 10);//m
-		//signal->SetParLimits(8, 1, 80);//alpha
-		//signal->SetParLimits(7, 0.02, 5);//sigma
-		//signal->SetParLimits(6, 0, 1);//offset
-		//signal->SetParLimits(5, 8000, 5000000);//A
-		//signal->SetParLimits(4, 0.95, 1.3); //background x scale
-		//signal->SetParLimits(3, 0.2, 10);//background y scale
-		//signal->SetParLimits(2, -0.1, 0.6);//background x offset
-	//}
-	//else //min is known, optimization
-	//{
-	//	signal->SetParameters(par1, par2, out_pars[0], out_pars[1], out_pars[2], out_pars[3], out_pars[4], out_pars[5], out_pars[6], out_pars[7]);
-	//	signal->SetParameter(10, out_pars[8]);
-	//	signal->SetParameter(11, out_pars[9]);
-
-	//	signal->SetParLimits(11, 0.008, 0.05);//a
-	//	signal->SetParLimits(10, 0.10, 0.3); //x0
-	//	signal->SetParLimits(9, out_pars[7] * 0.1, out_pars[7] * 10);//m
-	//	signal->SetParLimits(8, out_pars[6] * 0.1, out_pars[6] * 10);//alpha
-	//	signal->SetParLimits(7, out_pars[5] * 0.1, out_pars[5] * 10);//sigma
-	//	signal->SetParLimits(6, out_pars[4] * 0.1, out_pars[4] * 10);//offset
-	//	signal->SetParLimits(5, out_pars[3] * 0.1, out_pars[3] * 10);//A
-	//	signal->SetParLimits(4, out_pars[2] * 0.1, out_pars[2] * 10); //background x scale
-	//	signal->SetParLimits(3, out_pars[1] * 0.1, out_pars[1] * 10);//background y scale
-	//	signal->SetParLimits(2, out_pars[0] * 0.1, out_pars[0] * 10);//background x offset
-	//}
-
+		//
+		signal->FixParameter(6, 0);
+		//
+	
 	std::cout << "starting fitting" << std::endl;
 	gr->Fit(signal);
 
@@ -522,7 +401,6 @@ void create_bkg_sim(char filename_genuine_bkg[], char filename_bogus_bkg[])
 
 void test_data_simulation(int step, int N_N, double* signal_sim)
 {
-	if (!WRITE_STAT) return;
 	std::string base(".\\di\\signal_");
 	std::string suffix(".txt");
 	std::string num = std::to_string(step);
@@ -583,11 +461,11 @@ void test_integral(int N_N, double *x,double x_left,double x_right, extra_info *
 
 //IN sizeof (data) = N_N*2 +10, coz data = (x united with y ) + initial fit parameters for the sake of optimization
 //OUT size of data = 13 - number of parameters + average + Chi square + fit probability
-void core(int do_draw, int n_data, double** data, char filename_bkg[], char filename_data[])
+void core(int number_of_sim, int is_err_assess, int write_stat, double data_error, int do_draw, int n_data, double** data, char filename_bkg[], char filename_data[])
 {
-	int Number_of_simulations = NUMBER_OF_SIMULATIONS;
+	int Number_of_simulations = number_of_sim;
 	int manual_limits = MANUAL_LIMITS;
-	int error_estimation = ERR_ESTIMATE;
+	int error_estimation = is_err_assess;
 	int MODE = MODE_; //0 - only for testing some things (see corresponding code)
 	if (!do_draw) MODE = 1;
 	if (n_data != 0)
@@ -724,9 +602,6 @@ void core(int do_draw, int n_data, double** data, char filename_bkg[], char file
 	else
 	{
 		double *result_params=new double [13];
-		result_params[10] = n_data;
-		//
-		result_params[10] = 0;//no "optimization"
 		if (n_data)
 		{
 			for (int jjj = 0; jjj < 10; jjj++)
@@ -782,9 +657,9 @@ void core(int do_draw, int n_data, double** data, char filename_bkg[], char file
 					signal_sim[jjj + 2 * N_N] = result_params[jjj];
 				}
 				delete rand_obj;
-				test_data_simulation(Monte+1, N_N, signal_sim); // TEMP
+				if (write_stat) test_data_simulation(Monte+1, N_N, signal_sim);
 				create_bkg_sim(filename_bkg, bkg_sim);
-				core(0, N_N, &signal_sim, bkg_sim, filename_data); //<-----------------------------------------
+				core(0,0,0,0,0, N_N, &signal_sim, bkg_sim, filename_data); //<-----------------------------------------
 				avr_values << signal_sim[10] << "\t" << signal_sim[11] << "\t" << signal_sim[0] << "\t" << signal_sim[1] << "\t" << signal_sim[2] << "\t" << signal_sim[3]
 					<< "\t" << signal_sim[4] << "\t" << signal_sim[5] << "\t" << signal_sim[6] << "\t" << signal_sim[7] << "\t" << signal_sim[8] << "\t" << signal_sim[9]
 					<< std::endl;
